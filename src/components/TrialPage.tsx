@@ -5,16 +5,53 @@ import {
     Play, Pause, RotateCcw }
 from 'lucide-react';
 
+interface AnalysisResults {
+    classification: {
+        prediction: string;
+        confidence: number;
+        risk_score: number;
+        uncertainty: number;
+    };
+    segmentation: {
+        nodule_volume: string;
+        diameter: string;
+        density: string;
+        shape_irregularity: number;
+        unet_confidence: number;
+    };
+    clinical: {
+        stage_prediction: string;
+        metastasis_risk: string;
+        growth_velocity: string;
+        recommended_action: string;
+    };
+    fuzzy_analysis: {
+        membership_scores: {
+            benign: number;
+            malignant: number;
+            uncertain: number;
+        };
+        risk_factors: Array<{
+            factor: string;
+            score: number;
+            weight: number;
+        }>;
+    };
+}
 
 const TrialPage = () => {
-    const [uploadedFile, setUploadedFile] = useState(null);
+    const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisComplete, setAnalysisComplete] = useState(false);
-    const [results, setResults] = useState(null);
+    const [results, setResults] = useState<AnalysisResults | null>(null);
     const [currentView, setCurrentView] = useState('upload');
     const [animationProgress, setAnimationProgress] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
-    const fileInputRef = useRef(null);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const resetDemo = () => {
         setUploadedFile(null);
@@ -169,7 +206,7 @@ const TrialPage = () => {
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-cyan-400 font-semibold">Size:</span>
-                                        <span className="text-white">{(uploadedFile?.size / 1024 / 1024).toFixed(2)} MB</span>
+                                        <span className="text-white">{uploadedFile?.size ? (uploadedFile.size / 1024 / 1024).toFixed(2) : '0'} MB</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-cyan-400 font-semibold">Type:</span>
@@ -296,197 +333,250 @@ const TrialPage = () => {
         </div>
     );
 
-    const TrialResultsSection = () => (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900">
-            <section className="pt-24 pb-12 px-8">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <h1 className="text-4xl font-bold text-white mb-2">3D U-Net Analysis Complete</h1>
-                        <p className="text-gray-300">Comprehensive AI-powered lung nodule assessment with fuzzy logic</p>
-                    </div>
+    const TrialResultsSection = () => {
+        const handleMouseDown = (e: React.MouseEvent) => {
+            setIsDragging(true);
+            setDragStart({
+                x: e.clientX - position.x,
+                y: e.clientY - position.y
+            });
+        };
 
-                    {/* Main Results Grid */}
-                    <div className="grid lg:grid-cols-3 gap-6 mb-8">
-                        {/* Classification Results */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6">
-                            <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                                <AlertCircle className="w-6 h-6 text-red-400 mr-2" />
-                                Classification Results
-                            </h2>
+        const handleMouseMove = (e: React.MouseEvent) => {
+            if (!isDragging) return;
+            
+            const newX = e.clientX - dragStart.x;
+            const newY = e.clientY - dragStart.y;
+            
+            // Calculate max bounds based on zoom level
+            const maxOffset = (zoomLevel - 1) * 100; // 100 is half the container size
+            
+            setPosition({
+                x: Math.max(-maxOffset, Math.min(maxOffset, newX)),
+                y: Math.max(-maxOffset, Math.min(maxOffset, newY))
+            });
+        };
 
-                            <div className="space-y-4">
-                                <div className="bg-red-500/20 border border-red-400 rounded-lg p-4">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-red-300 font-semibold">Malignant Detected</span>
-                                        <span className="text-white font-bold">{(results?.classification.confidence * 100).toFixed(1)}%</span>
-                                    </div>
-                                    <div className="w-full bg-gray-700 rounded-full h-3">
-                                        <div
-                                            className="bg-red-500 h-3 rounded-full transition-all duration-1000"
-                                            style={{ width: `${results?.classification.confidence * 100}%` }}
-                                        />
-                                    </div>
-                                </div>
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
 
-                                <div className="bg-black/30 rounded-lg p-4 space-y-3">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-300">U-Net Confidence:</span>
-                                        <span className="text-cyan-400 font-semibold">{(results?.segmentation.unet_confidence * 100).toFixed(0)}%</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-300">Risk Score:</span>
-                                        <span className="text-orange-400 font-semibold">{(results?.classification.risk_score * 100).toFixed(0)}%</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-300">Uncertainty:</span>
-                                        <span className="text-yellow-400 font-semibold">{(results?.classification.uncertainty * 100).toFixed(1)}%</span>
-                                    </div>
-                                </div>
-                            </div>
+        const handleReset = () => {
+            setZoomLevel(1);
+            setPosition({ x: 0, y: 0 });
+        };
+
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900">
+                <section className="pt-24 pb-12 px-8">
+                    <div className="max-w-7xl mx-auto">
+                        {/* Header */}
+                        <div className="text-center mb-8">
+                            <h1 className="text-4xl font-bold text-white mb-2">3D U-Net Analysis Complete</h1>
+                            <p className="text-gray-300">Comprehensive AI-powered lung nodule assessment with fuzzy logic</p>
                         </div>
 
-                        {/* 3D U-Net Segmentation */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6">
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-semibold text-white flex items-center">
-                                    <Eye className="w-6 h-6 text-cyan-400 mr-2" />
-                                    3D U-Net Segmentation
+                        {/* Main Results Grid */}
+                        <div className="grid lg:grid-cols-3 gap-6 mb-8">
+                            {/* Classification Results */}
+                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6">
+                                <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
+                                    <AlertCircle className="w-6 h-6 text-red-400 mr-2" />
+                                    Classification Results
                                 </h2>
-                                <div className="flex space-x-2">
-                                    <button
-                                        onClick={() => setIsPlaying(!isPlaying)}
-                                        className="bg-cyan-500 hover:bg-cyan-600 text-white p-2 rounded transition-colors"
-                                    >
-                                        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                                    </button>
-                                    <button
-                                        onClick={() => setAnimationProgress(0)}
-                                        className="bg-gray-600 hover:bg-gray-500 text-white p-2 rounded transition-colors"
-                                    >
-                                        <RotateCcw className="w-4 h-4" />
-                                    </button>
+
+                                <div className="space-y-4">
+                                    <div className="bg-red-500/20 border border-red-400 rounded-lg p-4">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-red-300 font-semibold">Malignant Detected</span>
+                                            <span className="text-white font-bold">{results?.classification?.confidence ? (results.classification.confidence * 100).toFixed(1) : '0'}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-700 rounded-full h-3">
+                                            <div
+                                                className="bg-red-500 h-3 rounded-full transition-all duration-1000"
+                                                style={{ width: `${results?.classification?.confidence ? results.classification.confidence * 100 : 0}%` }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-black/30 rounded-lg p-4 space-y-3">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-300">U-Net Confidence:</span>
+                                            <span className="text-cyan-400 font-semibold">{results?.segmentation?.unet_confidence ? (results.segmentation.unet_confidence * 100).toFixed(0) : '0'}%</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-300">Risk Score:</span>
+                                            <span className="text-orange-400 font-semibold">{results?.classification?.risk_score ? (results.classification.risk_score * 100).toFixed(0) : '0'}%</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-300">Uncertainty:</span>
+                                            <span className="text-yellow-400 font-semibold">{results?.classification?.uncertainty ? (results.classification.uncertainty * 100).toFixed(1) : '0'}%</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="bg-black/50 rounded-lg h-64 flex items-center justify-center relative overflow-hidden">
-                                <div
-                                    className="w-32 h-32 bg-gradient-to-br from-red-500 to-orange-500 rounded-full opacity-80 relative"
-                                    style={{
-                                        transform: `rotateY(${animationProgress * 3.6}deg) rotateX(${Math.sin(animationProgress * 0.1) * 10}deg)`
-                                    }}
+                            {/* 3D U-Net Segmentation */}
+                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-xl font-semibold text-white flex items-center">
+                                        <Eye className="w-6 h-6 text-cyan-400 mr-2" />
+                                        3D U-Net Segmentation
+                                    </h2>
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={() => setZoomLevel(prev => Math.max(1, prev - 0.2))}
+                                            className="bg-gray-600 hover:bg-gray-500 text-white p-2 rounded transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={() => setZoomLevel(prev => Math.min(3, prev + 0.2))}
+                                            className="bg-gray-600 hover:bg-gray-500 text-white p-2 rounded transition-colors"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={handleReset}
+                                            className="bg-gray-600 hover:bg-gray-500 text-white p-2 rounded transition-colors"
+                                        >
+                                            <RotateCcw className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div 
+                                    className="bg-black/50 rounded-lg h-64 flex items-center justify-center relative overflow-hidden cursor-move"
+                                    onMouseDown={handleMouseDown}
+                                    onMouseMove={handleMouseMove}
+                                    onMouseUp={handleMouseUp}
+                                    onMouseLeave={handleMouseUp}
                                 >
-                                    <div className="absolute inset-2 bg-gradient-to-br from-red-600 to-red-800 rounded-full opacity-60" />
+                                    <img 
+                                        src="/scan-result.png" 
+                                        alt="3D U-Net Segmentation Result" 
+                                        className="w-full h-full object-contain transition-transform duration-200"
+                                        style={{ 
+                                            transform: `scale(${zoomLevel}) translate(${position.x}px, ${position.y}px)`,
+                                            cursor: isDragging ? 'grabbing' : 'grab'
+                                        }}
+                                        draggable="false"
+                                    />
+                                    <div className="absolute top-3 left-3 text-xs text-gray-400">
+                                        Nodule: {results?.segmentation.diameter}
+                                    </div>
+                                    <div className="absolute bottom-3 right-3 text-xs text-cyan-400">
+                                        U-Net Processed
+                                    </div>
                                 </div>
-                                <div className="absolute top-3 left-3 text-xs text-gray-400">
-                                    Nodule: {results?.segmentation.diameter}
-                                </div>
-                                <div className="absolute bottom-3 right-3 text-xs text-cyan-400">
-                                    U-Net Processed
+
+                                <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                                    <div className="bg-black/30 rounded p-2">
+                                        <span className="text-gray-400">Volume:</span>
+                                        <span className="text-white ml-2">{results?.segmentation.nodule_volume}</span>
+                                    </div>
+                                    <div className="bg-black/30 rounded p-2">
+                                        <span className="text-gray-400">Density:</span>
+                                        <span className="text-white ml-2">{results?.segmentation.density}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                                <div className="bg-black/30 rounded p-2">
-                                    <span className="text-gray-400">Volume:</span>
-                                    <span className="text-white ml-2">{results?.segmentation.nodule_volume}</span>
-                                </div>
-                                <div className="bg-black/30 rounded p-2">
-                                    <span className="text-gray-400">Density:</span>
-                                    <span className="text-white ml-2">{results?.segmentation.density}</span>
+                            {/* Clinical Assessment */}
+                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6">
+                                <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
+                                    <FileText className="w-6 h-6 text-green-400 mr-2" />
+                                    Clinical Assessment
+                                </h2>
+
+                                <div className="space-y-4">
+                                    <div className="bg-black/30 rounded-lg p-3">
+                                        <h3 className="text-green-400 font-semibold mb-2">Stage Prediction</h3>
+                                        <p className="text-white text-sm">{results?.clinical.stage_prediction}</p>
+                                    </div>
+
+                                    <div className="bg-black/30 rounded-lg p-3">
+                                        <h3 className="text-blue-400 font-semibold mb-2">Metastasis Risk</h3>
+                                        <p className="text-white text-sm">{results?.clinical.metastasis_risk}</p>
+                                    </div>
+
+                                    <div className="bg-black/30 rounded-lg p-3">
+                                        <h3 className="text-purple-400 font-semibold mb-2">AI Recommendation</h3>
+                                        <p className="text-white text-sm">{results?.clinical.recommended_action}</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Clinical Assessment */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6">
-                            <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                                <FileText className="w-6 h-6 text-green-400 mr-2" />
-                                Clinical Assessment
+                        {/* Fuzzy Logic Analysis */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-8">
+                            <h2 className="text-2xl font-semibold text-white mb-6 flex items-center">
+                                <Activity className="w-7 h-7 text-purple-400 mr-3" />
+                                Fuzzy Logic Uncertainty Analysis
                             </h2>
 
-                            <div className="space-y-4">
-                                <div className="bg-black/30 rounded-lg p-3">
-                                    <h3 className="text-green-400 font-semibold mb-2">Stage Prediction</h3>
-                                    <p className="text-white text-sm">{results?.clinical.stage_prediction}</p>
+                            <div className="grid lg:grid-cols-2 gap-8">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white mb-4">Membership Function Scores</h3>
+                                    <div className="space-y-4">
+                                        {Object.entries(results?.fuzzy_analysis.membership_scores || {}).map(([label, score]) => (
+                                            <div key={label} className="flex items-center space-x-4">
+                                                <span className="text-gray-300 w-24 capitalize font-medium">{label}:</span>
+                                                <div className="flex-1 bg-gray-700 rounded-full h-3">
+                                                    <div
+                                                        className={`h-3 rounded-full transition-all duration-1000 ${
+                                                            label === 'malignant' ? 'bg-red-500' :
+                                                                label === 'benign' ? 'bg-green-500' : 'bg-yellow-500'
+                                                        }`}
+                                                        style={{ width: `${score * 100}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-white w-14 text-right font-semibold">{(score * 100).toFixed(0)}%</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
 
-                                <div className="bg-black/30 rounded-lg p-3">
-                                    <h3 className="text-blue-400 font-semibold mb-2">Metastasis Risk</h3>
-                                    <p className="text-white text-sm">{results?.clinical.metastasis_risk}</p>
-                                </div>
-
-                                <div className="bg-black/30 rounded-lg p-3">
-                                    <h3 className="text-purple-400 font-semibold mb-2">AI Recommendation</h3>
-                                    <p className="text-white text-sm">{results?.clinical.recommended_action}</p>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white mb-4">Risk Factor Contributions</h3>
+                                    <div className="space-y-3">
+                                        {results?.fuzzy_analysis.risk_factors.map((factor, idx) => (
+                                            <div key={idx} className="flex justify-between items-center bg-black/30 rounded-lg p-3">
+                                                <span className="text-gray-300 font-medium">{factor.factor}</span>
+                                                <div className="flex items-center space-x-3">
+                                                    <span className="text-white font-semibold">{(factor.score * 100).toFixed(0)}%</span>
+                                                    <span className="text-gray-400 text-sm">({(factor.weight * 100).toFixed(0)}% weight)</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Fuzzy Logic Analysis */}
-                    <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-8">
-                        <h2 className="text-2xl font-semibold text-white mb-6 flex items-center">
-                            <Activity className="w-7 h-7 text-purple-400 mr-3" />
-                            Fuzzy Logic Uncertainty Analysis
-                        </h2>
-
-                        <div className="grid lg:grid-cols-2 gap-8">
-                            <div>
-                                <h3 className="text-lg font-semibold text-white mb-4">Membership Function Scores</h3>
-                                <div className="space-y-4">
-                                    {Object.entries(results?.fuzzy_analysis.membership_scores || {}).map(([label, score]) => (
-                                        <div key={label} className="flex items-center space-x-4">
-                                            <span className="text-gray-300 w-24 capitalize font-medium">{label}:</span>
-                                            <div className="flex-1 bg-gray-700 rounded-full h-3">
-                                                <div
-                                                    className={`h-3 rounded-full transition-all duration-1000 ${
-                                                        label === 'malignant' ? 'bg-red-500' :
-                                                            label === 'benign' ? 'bg-green-500' : 'bg-yellow-500'
-                                                    }`}
-                                                    style={{ width: `${score * 100}%` }}
-                                                />
-                                            </div>
-                                            <span className="text-white w-14 text-right font-semibold">{(score * 100).toFixed(0)}%</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div>
-                                <h3 className="text-lg font-semibold text-white mb-4">Risk Factor Contributions</h3>
-                                <div className="space-y-3">
-                                    {results?.fuzzy_analysis.risk_factors.map((factor, idx) => (
-                                        <div key={idx} className="flex justify-between items-center bg-black/30 rounded-lg p-3">
-                                            <span className="text-gray-300 font-medium">{factor.factor}</span>
-                                            <div className="flex items-center space-x-3">
-                                                <span className="text-white font-semibold">{(factor.score * 100).toFixed(0)}%</span>
-                                                <span className="text-gray-400 text-sm">({(factor.weight * 100).toFixed(0)}% weight)</span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                        {/* Action Buttons */}
+                        <div className="flex justify-center space-x-6">
+                            <button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-xl font-semibold flex items-center space-x-2 transition-all transform hover:scale-105">
+                                <Download className="w-5 h-5" />
+                                <span>Export Clinical Report</span>
+                            </button>
+                            <button
+                                onClick={resetDemo}
+                                className="bg-gray-700 hover:bg-gray-600 text-white px-8 py-4 rounded-xl font-semibold transition-colors"
+                            >
+                                Analyze Another Scan
+                            </button>
                         </div>
                     </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex justify-center space-x-6">
-                        <button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-4 rounded-xl font-semibold flex items-center space-x-2 transition-all transform hover:scale-105">
-                            <Download className="w-5 h-5" />
-                            <span>Export Clinical Report</span>
-                        </button>
-                        <button
-                            onClick={resetDemo}
-                            className="bg-gray-700 hover:bg-gray-600 text-white px-8 py-4 rounded-xl font-semibold transition-colors"
-                        >
-                            Analyze Another Scan
-                        </button>
-                    </div>
-                </div>
-            </section>
-        </div>
-    );
+                </section>
+            </div>
+        );
+    };
 
 
 
