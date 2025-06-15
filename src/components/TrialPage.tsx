@@ -1,8 +1,7 @@
 import {useEffect, useRef, useState, type ChangeEventHandler, type ChangeEvent} from "react";
 import {
     Upload, Brain, Activity, AlertCircle, CheckCircle,
-    TrendingUp, Eye, FileText, Download,
-    Play, Pause, RotateCcw }
+    TrendingUp, Eye, FileText, Download, RotateCcw }
 from 'lucide-react';
 
 interface AnalysisResults {
@@ -120,7 +119,7 @@ const TrialPage = () => {
     // Animation for 3D visualization
     useEffect(() => {
         let interval: number | undefined;
-        if (isPlaying) {
+        if (isPlaying && !isAnalyzing && analysisComplete) {
             interval = setInterval(() => {
                 setAnimationProgress(prev => (prev + 1) % 100);
             }, 50);
@@ -202,7 +201,7 @@ const TrialPage = () => {
                                 <div className="bg-black/30 rounded-xl p-6 space-y-4">
                                     <div className="flex justify-between">
                                         <span className="text-cyan-400 font-semibold">Filename:</span>
-                                        <span className="text-white">{uploadedFile?.name}</span>
+                                        <span className="text-white truncate">{uploadedFile?.name}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-cyan-400 font-semibold">Size:</span>

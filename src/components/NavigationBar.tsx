@@ -4,7 +4,7 @@ import {useState} from "react";
 const NavigationBar = ({
         currentPage,
         setCurrentPage
-}) => {
+}: any) => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
     return (

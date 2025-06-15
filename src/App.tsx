@@ -130,7 +130,10 @@ const App = () => {
     </>
   )
 
-  return HomeComponent;
+  return <>
+          <NavigationBar currentPage={currentPage} setCurrentPage={setCurrentPage} />
+          <HomeComponent />
+        </>
 };
 
 export default App;
